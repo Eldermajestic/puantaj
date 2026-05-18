@@ -112,7 +112,7 @@ const DS={"Off":"OFF","DVS":"DVS","Rapor":"R","Ücretsiz İzin":"Üİ","Mazeret 
 const DB_={"Off":"#1a1215","DVS":"#1f1015","Bayram İzni":"#1f1a0e"};
 const AYLAR=["","Ocak","Şubat","Mart","Nisan","Mayıs","Haziran","Temmuz","Ağustos","Eylül","Ekim","Kasım","Aralık"];
 const GN=["Paz","Pzt","Sal","Çar","Per","Cum","Cmt"];
-function cM(c,d){if(!c||(d&&d!==""))return d?"-":"";return MM[c]??0}
+function cM(c,d){if(!c || c===""){return d?"-":""}if(d&&d!=="")return "-";return MM[c]??""}
 function dim(y,m){return new Date(y,m,0).getDate()}
 function gn(y,m,d){return GN[new Date(y,m-1,d).getDay()]}
 
@@ -426,6 +426,7 @@ function render(){
     if(!S.addMode){
       div.appendChild(h('button',{className:'b b-p',style:{marginTop:'8px',width:'100%',borderStyle:'dashed'},onClick:()=>{S.addMode=true;render()}},'+ Personel Ekle'));
     }
+    div.appendChild(h('button',{className:'b',style:{marginTop:'16px',width:'100%',borderColor:'var(--r)',color:'var(--r)'},onClick:()=>{if(confirm('Tüm veriler silinecek, emin misin?')){localStorage.clear();location.reload()}}},'🗑 Tüm Verileri Sıfırla'));
     app.appendChild(div);
   }
 
