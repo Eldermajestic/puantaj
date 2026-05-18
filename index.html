@@ -47,35 +47,61 @@ td{padding:3px 2px;text-align:center;font-size:11px;border-bottom:1px solid var(
 <div id="app"><div style="display:flex;justify-content:center;align-items:center;height:100vh;color:#818cf8;font-family:monospace">Yükleniyor...</div></div>
 
 <script>
-// ===== SUPABASE CONFIG =====
-const SUPA_URL = 'https://ewoikcvivekotwrvzzxc.supabase.co';
-const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV3b2lrY3ZpdmVrb2t3cnZ6enhjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkwMzYyMjAsImV4cCI6MjA5NDYxMjIyMH0.mE8fuT0amR5kMTj6-IGgIPN1XW73PB9E2AljXX0M1Lw';
-const HEADERS = {'apikey':SUPA_KEY,'Authorization':`Bearer ${SUPA_KEY}`,'Content-Type':'application/json','Prefer':'return=minimal'};
-const HEADERS_RET = {...HEADERS,'Prefer':'return=representation'};
+// ===== LOCAL STORAGE BACKEND =====
+// No external database needed - everything saved in browser
 
-// ===== SUPABASE API =====
-async function sGet(table, params='') {
-  const r = await fetch(`${SUPA_URL}/rest/v1/${table}?${params}`, {headers:HEADERS});
-  if (!r.ok) throw new Error(`GET ${table}: ${r.status}`);
-  return r.json();
+function lsGet(key) { try { return JSON.parse(localStorage.getItem(key) || '[]'); } catch(e) { return []; } }
+function lsSet(key, val) { localStorage.setItem(key, JSON.stringify(val)); }
+
+// Init default employees
+if (lsGet('pnt_emps').length === 0) {
+  lsSet('pnt_emps', [
+    "AYNUR SAVRAN","AY\u015eE EL\u0130K","EMİNE CAYMAZ","ESMA BÜBER",
+    "FADİME ÇETİNKAYA","FADİME TURBAŞ","FATMA ATMACA","FATMA KORKMAZ",
+    "FİLİZ ÇİFTÇİ","GÜLİZAR DENİZ","HANİFE KAYA","HÜLYA YILDIZ",
+    "NAZMİYE URTAN","NEVİN İNAÇ","NURAY DOĞAN","SÜREYYA ŞAHİN",
+    "ULVİYE EFE","YAŞAR ARABACI","HAZAL KANBER"
+  ].map((name, i) => ({id: i+1, name, active: true})));
 }
-async function sPost(table, data) {
-  const r = await fetch(`${SUPA_URL}/rest/v1/${table}`, {method:'POST',headers:HEADERS_RET,body:JSON.stringify(data)});
-  if (!r.ok) throw new Error(`POST ${table}: ${r.status} ${await r.text()}`);
-  return r.json();
+
+async function sGet(table, params) {
+  if (table === 'employees') {
+    return lsGet('pnt_emps').filter(e => e.active !== false).sort((a,b) => a.id - b.id);
+  }
+  if (table === 'puantaj') {
+    const m = params.match(/year=eq\.(\d+).*month=eq\.(\d+)/);
+    if (m) { const all = lsGet('pnt_data'); return all.filter(r => r.year==m[1] && r.month==m[2]); }
+  }
+  return [];
 }
-async function sUpsert(table, data) {
-  const r = await fetch(`${SUPA_URL}/rest/v1/${table}`, {
-    method:'POST',headers:{...HEADERS_RET,'Prefer':'return=representation,resolution=merge-duplicates'},
-    body:JSON.stringify(data)
-  });
-  if (!r.ok) throw new Error(`UPSERT ${table}: ${r.status} ${await r.text()}`);
-  return r.json();
+async function sUpsert(table, rows) {
+  if (table === 'employees') {
+    const data = lsGet('pnt_emps');
+    rows.forEach(row => { const i = data.findIndex(e => e.id === row.id); if (i>=0) Object.assign(data[i],row); else data.push(row); });
+    lsSet('pnt_emps', data);
+  } else {
+    const data = lsGet('pnt_data');
+    rows.forEach(row => {
+      const i = data.findIndex(e => e.year===row.year && e.month===row.month && e.emp_idx===row.emp_idx && e.day===row.day);
+      if (i>=0) Object.assign(data[i], row); else data.push(row);
+    });
+    lsSet('pnt_data', data);
+  }
+  return rows;
 }
-async function sDelete(table, params) {
-  const r = await fetch(`${SUPA_URL}/rest/v1/${table}?${params}`, {method:'DELETE',headers:HEADERS});
-  if (!r.ok) throw new Error(`DELETE ${table}: ${r.status}`);
+async function sPost(table, rows) {
+  if (table === 'employees') {
+    const data = lsGet('pnt_emps');
+    const maxId = data.reduce((m,e) => Math.max(m, e.id||0), 0);
+    rows.forEach((row,i) => { row.id = maxId + i + 1; data.push(row); });
+    lsSet('pnt_emps', data);
+    return rows;
+  }
+  return rows;
 }
+async function sDelete() {}
+
+const HEADERS = {}; const HEADERS_RET = {};
 
 // ===== CONSTANTS =====
 const CALISMA=["","08:00-16:00","08:00-18:00","08:00-20:00","16:00-24:00","24:00-08:00","20:00-08:00","Pazar Mesai-7,5","Pazar Mesai-11"];
@@ -110,7 +136,7 @@ async function loadData() {
     S.loaded = true;
   } catch(e) {
     console.error(e);
-    S.error = e.message;
+    console.warn('Load error:',e);
     S.loaded = true;
   }
   render();
